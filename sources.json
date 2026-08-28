@@ -1,0 +1,204 @@
+[
+  {
+    "name": "OpenAI News",
+    "url": "https://openai.com/news/rss.xml",
+    "category": "Company",
+    "priority": 10,
+    "max_items": 4
+  },
+  {
+    "name": "Google DeepMind",
+    "url": "https://deepmind.google/blog/rss.xml",
+    "category": "Company",
+    "priority": 9,
+    "max_items": 4
+  },
+  {
+    "name": "Google AI Blog",
+    "url": "https://blog.google/innovation-and-ai/technology/ai/rss/",
+    "category": "Company",
+    "priority": 8,
+    "max_items": 3
+  },
+  {
+    "name": "Google Research Blog",
+    "url": "https://research.google/blog/rss/",
+    "category": "Research",
+    "priority": 7,
+    "max_items": 1,
+    "include_keywords": [
+      "ai",
+      "agent",
+      "agents",
+      "model",
+      "models",
+      "gemini",
+      "evaluation",
+      "benchmark"
+    ]
+  },
+  {
+    "name": "TechCrunch AI",
+    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "category": "News",
+    "priority": 6,
+    "max_items": 3,
+    "include_keywords": [
+      "openai",
+      "anthropic",
+      "google",
+      "deepmind",
+      "microsoft",
+      "meta",
+      "mistral",
+      "hugging face",
+      "perplexity",
+      "nvidia",
+      "adobe",
+      "salesforce",
+      "sap",
+      "siemens",
+      "europe",
+      "european",
+      "eu",
+      "uk",
+      "germany",
+      "france",
+      "startup",
+      "enterprise",
+      "company",
+      "companies",
+      "funding",
+      "acquisition"
+    ],
+    "exclude_keywords": [
+      "cat",
+      "litter",
+      "pet",
+      "game",
+      "gaming"
+    ]
+  },
+  {
+    "name": "The Verge AI",
+    "url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+    "category": "News",
+    "priority": 5,
+    "max_items": 2,
+    "include_keywords": [
+      "openai",
+      "anthropic",
+      "google",
+      "deepmind",
+      "microsoft",
+      "meta",
+      "mistral",
+      "perplexity",
+      "nvidia",
+      "adobe",
+      "salesforce",
+      "sap",
+      "siemens",
+      "europe",
+      "european",
+      "eu",
+      "uk",
+      "enterprise",
+      "regulation",
+      "policy",
+      "company",
+      "companies"
+    ],
+    "exclude_keywords": [
+      "cat",
+      "litter",
+      "pet",
+      "review",
+      "phone",
+      "camera"
+    ]
+  },
+  {
+    "name": "Hacker News",
+    "url": "https://news.ycombinator.com/rss",
+    "category": "Community",
+    "priority": 4,
+    "max_items": 2,
+    "include_keywords": [
+      "ai",
+      "llm",
+      "openai",
+      "anthropic",
+      "claude",
+      "gemini",
+      "chatgpt",
+      "codex",
+      "agent",
+      "agents",
+      "cursor",
+      "mistral",
+      "copilot",
+      "perplexity",
+      "nvidia"
+    ],
+    "exclude_keywords": [
+      "show hn",
+      "hiring",
+      "ask hn",
+      "tell hn"
+    ]
+  },
+  {
+    "name": "Lenny's Newsletter",
+    "url": "https://www.lennysnewsletter.com/feed",
+    "category": "Product",
+    "priority": 4,
+    "max_items": 1,
+    "include_keywords": [
+      "ai",
+      "openai",
+      "anthropic",
+      "claude",
+      "gemini",
+      "chatgpt",
+      "codex",
+      "cursor",
+      "agent",
+      "agents",
+      "product",
+      "enterprise",
+      "company",
+      "companies"
+    ]
+  },
+  {
+    "name": "METR",
+    "url": "https://metr.org/feed.xml",
+    "category": "Research",
+    "priority": 3,
+    "max_items": 1,
+    "include_keywords": [
+      "benchmark",
+      "evaluation",
+      "eval",
+      "agent",
+      "agents",
+      "model",
+      "models",
+      "capability",
+      "capabilities",
+      "risk",
+      "safety",
+      "performance",
+      "metric",
+      "metrics"
+    ]
+  },
+  {
+    "name": "arXiv cs.AI",
+    "url": "https://rss.arxiv.org/rss/cs.AI",
+    "category": "Research",
+    "priority": 2,
+    "max_items": 1
+  }
+]

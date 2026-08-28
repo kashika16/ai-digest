@@ -1,0 +1,71 @@
+name: AI Daily Digest
+
+on:
+  workflow_dispatch:
+    inputs:
+      ignore_seen:
+        description: "Send even if items were already seen"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "0 7 * * *"
+      timezone: "Europe/Berlin"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-digest
+  cancel-in-progress: false
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    env:
+      DIGEST_TO_EMAIL: ${{ secrets.DIGEST_TO_EMAIL }}
+      DIGEST_FROM_EMAIL: ${{ secrets.DIGEST_FROM_EMAIL }}
+      DIGEST_SUBJECT_PREFIX: AI Daily Digest
+      DIGEST_HOURS_BACK: "24"
+      DIGEST_MAX_ITEMS: "20"
+      DIGEST_TIMEZONE: Europe/Berlin
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_USE_TLS: "true"
+      SMTP_USE_SSL: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Restore seen-link state
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache
+          key: ai-digest-state-${{ github.run_id }}
+          restore-keys: |
+            ai-digest-state-
+
+      - name: Ensure cache directory exists
+        run: mkdir -p .cache
+
+      - name: Run digest
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.ignore_seen }}" = "true" ]; then
+            python3 run_digest.py --ignore-seen
+          else
+            python3 run_digest.py
+          fi
+
+      - name: Save seen-link state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache
+          key: ai-digest-state-${{ github.run_id }}
