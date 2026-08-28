@@ -30,7 +30,6 @@ The default source profile is tuned for signal over volume:
 - `run_digest.py`: command-line entrypoint.
 - `sources.json`: editable list of sources and source priorities.
 - `ai_digest/`: digest pipeline code.
-- `launchd/ai-digest.plist`: example macOS scheduler template.
 - `Makefile`: simple learner commands.
 
 ## Configure
