@@ -31,6 +31,7 @@ The default source profile is tuned for signal over volume:
 - `sources.json`: editable list of sources and source priorities.
 - `ai_digest/`: digest pipeline code.
 - `launchd/ai-digest.plist`: example macOS scheduler template.
+- `Makefile`: simple learner commands.
 
 ## Configure
 
@@ -70,6 +71,14 @@ python3 run_digest.py --preview --ignore-seen
 
 ```bash
 python3 run_digest.py --preview-html /tmp/ai-digest-preview.html
+```
+
+Shortcut commands:
+
+```bash
+make test
+make preview
+make preview-html
 ```
 
 ## Run once
