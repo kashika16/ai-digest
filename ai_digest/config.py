@@ -41,13 +41,20 @@ def load_env_file(env_path: Path) -> None:
         os.environ.setdefault(key, value)
 
 
+def runtime_data_root(project_root: Path) -> Path:
+    if os.environ.get("VERCEL"):
+        return Path("/tmp/ai-digest")
+    return project_root
+
+
 def load_config() -> DigestConfig:
     project_root = Path(__file__).resolve().parent.parent
     env_path = project_root / ".env"
     load_env_file(env_path)
 
-    state_dir = project_root / ".cache"
-    log_dir = project_root / "logs"
+    data_root = runtime_data_root(project_root)
+    state_dir = data_root / ".cache"
+    log_dir = data_root / "logs"
     state_dir.mkdir(exist_ok=True)
     log_dir.mkdir(exist_ok=True)
 
