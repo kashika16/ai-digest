@@ -1,3 +1,4 @@
+.DS_Store
 .env*
 .cache/
 logs/
@@ -5,3 +6,4 @@ __pycache__/
 *.pyc
 .vercel/
 launchd/generated.plist
+BUS278_Submission_Package.zip
