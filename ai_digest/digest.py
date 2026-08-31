@@ -10,17 +10,27 @@ from ai_digest.sources import load_sources
 def build_digest_content(config: DigestConfig, ignore_seen: bool = False) -> tuple[str, str, str, set[str]]:
     sources = load_sources(config.sources_file)
     seen_links = load_seen_links(config)
-    now_local, entries, new_seen_links = build_digest_entries(
+    build_result = build_digest_entries(
         config,
         sources,
         ignore_seen=ignore_seen,
         seen_links=seen_links,
     )
-    briefing_items = build_briefing_items(entries)
-    subject = build_subject(config.subject_prefix, now_local)
-    plain_body = build_plaintext(now_local, config.hours_back, briefing_items)
-    html_body = build_html(now_local, config.hours_back, briefing_items)
-    return subject, plain_body, html_body, new_seen_links
+    briefing_items = build_briefing_items(build_result.entries)
+    subject = build_subject(config.subject_prefix, build_result.now_local)
+    plain_body = build_plaintext(
+        build_result.now_local,
+        build_result.coverage_hours,
+        briefing_items,
+        build_result.unavailable_sources,
+    )
+    html_body = build_html(
+        build_result.now_local,
+        build_result.coverage_hours,
+        briefing_items,
+        build_result.unavailable_sources,
+    )
+    return subject, plain_body, html_body, build_result.new_seen_links
 
 
 def preview_digest(config: DigestConfig, ignore_seen: bool = False) -> str:
@@ -39,8 +49,9 @@ def run_digest(config: DigestConfig, ignore_seen: bool = False) -> None:
     save_seen_links(config, new_seen_links)
 
 
-def run_scheduled_digest(config: DigestConfig, target_hour: int = 7) -> str:
+def run_scheduled_digest(config: DigestConfig) -> str:
     now = local_now(config)
+    target_hour = config.scheduled_hour
     if now.hour != target_hour:
         return f"skip: local hour is {now.hour:02d}, target is {target_hour:02d}"
 

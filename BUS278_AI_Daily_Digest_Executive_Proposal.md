@@ -130,6 +130,21 @@ This project intentionally applies multiple course ideas:
 3. **Technology leaders must translate complexity into action.** The digest converts fragmented external signals into a usable daily briefing.
 4. **Platform thinking creates leverage.** A reusable daily system is more valuable than repeated manual research.
 
+### Course Week Mapping
+
+This proposal draws most directly from four course weeks:
+
+1. **Week 1:** Evaluate the project through the connected lens of product, platform, and P&L.
+2. **Week 2:** Tie the product to business context, prioritization, and the value of better investment and operating decisions.
+3. **Week 3:** Treat adoption as an operating model decision with clear ownership, recurring execution, and feedback loops.
+4. **Week 5:** Design around workflow leverage and reusable systems rather than a one-off AI feature.
+
 ### Artifact Delivered
 
 The practical artifact is a working AI Daily Digest system that curates selected sources, filters for high-signal updates, summarizes each item into key points with business relevance, and distributes the result as a daily email. It is immediately useful for me and also usable as a lightweight shared briefing for my team and peers. That makes the project directly usable after the course and aligned with the assignment requirement to create something that can be submitted, shared, published, or acted on.
+
+### Product Evidence
+
+The screenshot below shows the current digest preview with the briefing format, category structure, key points, and "Why it matters" framing used in the daily output.
+
+![AI Daily Digest preview](submission/submission-digest-preview.png)

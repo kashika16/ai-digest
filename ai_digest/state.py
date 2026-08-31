@@ -14,7 +14,7 @@ class StatePaths:
     last_sent_blob: str
 
 
-def state_paths(config: DigestConfig) -> StatePaths:
+def state_paths() -> StatePaths:
     return StatePaths(
         seen_links_blob=os.environ.get("DIGEST_SEEN_LINKS_BLOB_PATH", "state/seen-links.json"),
         last_sent_blob=os.environ.get("DIGEST_LAST_SENT_BLOB_PATH", "state/last-sent.txt"),
@@ -73,7 +73,7 @@ def save_last_sent_file(path: Path, value: str) -> None:
 
 
 def load_seen_links_blob(config: DigestConfig) -> set[str]:
-    payload = asyncio.run(read_blob_text(state_paths(config).seen_links_blob))
+    payload = asyncio.run(read_blob_text(state_paths().seen_links_blob))
     if not payload:
         return set()
     return set(json.loads(payload))
@@ -81,11 +81,11 @@ def load_seen_links_blob(config: DigestConfig) -> set[str]:
 
 def save_seen_links_blob(config: DigestConfig, links: set[str]) -> None:
     payload = json.dumps(sorted(links), indent=2)
-    asyncio.run(write_blob_text(state_paths(config).seen_links_blob, payload, "application/json"))
+    asyncio.run(write_blob_text(state_paths().seen_links_blob, payload, "application/json"))
 
 
 def load_last_sent_blob(config: DigestConfig) -> Optional[str]:
-    payload = asyncio.run(read_blob_text(state_paths(config).last_sent_blob))
+    payload = asyncio.run(read_blob_text(state_paths().last_sent_blob))
     if not payload:
         return None
     value = payload.strip()
@@ -93,7 +93,7 @@ def load_last_sent_blob(config: DigestConfig) -> Optional[str]:
 
 
 def save_last_sent_blob(config: DigestConfig, value: str) -> None:
-    asyncio.run(write_blob_text(state_paths(config).last_sent_blob, value, "text/plain"))
+    asyncio.run(write_blob_text(state_paths().last_sent_blob, value, "text/plain"))
 
 
 async def read_blob_text(pathname: str) -> str:

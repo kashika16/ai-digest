@@ -57,6 +57,10 @@ Common optional settings:
 - `DIGEST_MAX_ITEMS=20`
 - `DIGEST_TIMEZONE=Europe/Berlin`
 - `DIGEST_SUBJECT_PREFIX=AI Daily Digest`
+- `DIGEST_SEND_HOUR=7`
+- `DIGEST_MIN_ITEMS=8`
+- `DIGEST_MAX_HOURS_BACK=72`
+- `DIGEST_MAX_SEEN_LINKS=2000`
 
 ## Preview without sending
 
@@ -114,7 +118,7 @@ The job is set for `07:00` local time and writes logs into `logs/`.
 
 ## Deploy with Vercel
 
-This project now supports Vercel as the cloud runtime.
+This project supports Vercel as the cloud runtime, but the local preview is still the fastest way to review the product.
 
 Files used for Vercel:
 
@@ -125,17 +129,18 @@ Files used for Vercel:
 How it works:
 
 1. Vercel Cron calls `/api/cron`.
-2. The endpoint checks the Berlin local hour.
+2. The endpoint checks the configured local send hour.
 3. The digest sends only once per local date.
-4. Seen-link state and last-sent state are stored in Vercel Blob instead of local files.
+4. If a quiet day produces too few items, the digest automatically widens the recency window from 24 hours to 48 hours, then 72 hours.
+5. Seen-link state and last-sent state are stored in Vercel Blob instead of local files.
+6. Feed failures are isolated per source, and unavailable sources are listed in the digest footer instead of aborting the run.
 
-Why there are two cron entries:
+Why there is one hourly cron entry:
 
 - Vercel cron uses UTC.
-- Berlin shifts between UTC+1 and UTC+2.
-- `05:00 UTC` covers summer time.
-- `06:00 UTC` covers winter time.
-- The endpoint sends only when the Berlin local hour is actually `07`, so only one of the two runs sends on a given day.
+- The endpoint checks the local timezone and `DIGEST_SEND_HOUR`.
+- A single hourly cron avoids coupling the deployment to one timezone offset or daylight-saving transition.
+- The endpoint sends only when the local hour matches the configured target and the digest has not already been sent that day.
 
 What to configure in Vercel:
 
@@ -150,6 +155,7 @@ What to configure in Vercel:
    - `SMTP_USE_TLS=true`
    - `SMTP_USE_SSL=false`
    - `DIGEST_TIMEZONE=Europe/Berlin`
+   - `DIGEST_SEND_HOUR=7`
    - `CRON_SECRET`
 3. Create a Blob store in Vercel so the function can persist state.
 4. Redeploy the project.
@@ -160,11 +166,11 @@ Manual test on Vercel:
 - `GET /api/cron?mode=send` forces a send and ignores seen history.
 - `GET /api/cron` follows the scheduled-send rules.
 
-If you set `CRON_SECRET`, send the header `Authorization: Bearer <your-secret>` when manually calling the endpoint.
+Send the header `Authorization: Bearer <your-secret>` when manually calling the endpoint. The endpoint stays closed until `CRON_SECRET` is configured.
 
 ## Optional GitHub Actions
 
-The repo also contains a GitHub Actions workflow at `.github/workflows/ai-digest.yml`, but Vercel is now the preferred cloud deployment path for this project.
+The repo also contains a GitHub Actions workflow at `.github/workflows/ai-digest.yml`, but Vercel is the cleaner cloud deployment path for this project when you want a hosted schedule.
 
 ## Customizing sources
 
