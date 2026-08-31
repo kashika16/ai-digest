@@ -1,6 +1,10 @@
 # AI Daily Digest
 
-This project sends one email every morning with the latest AI updates from a curated list of feeds.
+AI Daily Digest is a lightweight morning briefing product for people who want high-signal AI updates without reading dozens of feeds.
+
+It pulls relevant stories from selected company, editorial, research, product, and community sources, rewrites them into short key points, and adds a brief `Why it matters` explanation so the reader can quickly decide what affects their work.
+
+The intended habit is simple: read one email before starting the day, get caught up on the AI developments that matter, and carry that context into product decisions, project work, and team conversations.
 
 The default source profile is tuned for signal over volume:
 
