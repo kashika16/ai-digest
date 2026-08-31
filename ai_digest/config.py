@@ -55,8 +55,8 @@ def load_config() -> DigestConfig:
     data_root = runtime_data_root(project_root)
     state_dir = data_root / ".cache"
     log_dir = data_root / "logs"
-    state_dir.mkdir(exist_ok=True)
-    log_dir.mkdir(exist_ok=True)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
 
     return DigestConfig(
         project_root=project_root,
