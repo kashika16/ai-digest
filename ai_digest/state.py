@@ -98,9 +98,13 @@ def save_last_sent_blob(config: DigestConfig, value: str) -> None:
 
 async def read_blob_text(pathname: str) -> str:
     from vercel.blob import AsyncBlobClient
+    from vercel._internal.blob.errors import BlobNotFoundError
 
     client = AsyncBlobClient()
-    response = await client.get(pathname, access="private")
+    try:
+        response = await client.get(pathname, access="private")
+    except BlobNotFoundError:
+        return ""
     if response is None:
         return ""
     chunks = []

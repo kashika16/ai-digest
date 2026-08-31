@@ -1,6 +1,9 @@
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 import tempfile
+import types
 import unittest
 
 from ai_digest.briefing import build_briefing_items
@@ -11,7 +14,7 @@ from ai_digest.pipeline import build_digest_entries, dedupe_entries, entry_match
 from ai_digest.render import build_html, build_plaintext, build_subject
 from ai_digest.rss import parse_feed
 from ai_digest.models import FeedEntry, Source
-from ai_digest.state import load_last_sent_file, load_seen_links_file, save_last_sent_file, save_seen_links_file
+from ai_digest.state import load_last_sent_file, load_seen_links_file, read_blob_text, save_last_sent_file, save_seen_links_file
 
 
 SAMPLE_RSS = """<?xml version="1.0" encoding="UTF-8"?>
@@ -288,6 +291,37 @@ class DigestTests(unittest.TestCase):
             path = Path(temp_dir) / "last_sent.txt"
             save_last_sent_file(path, "2026-08-28")
             self.assertEqual(load_last_sent_file(path), "2026-08-28")
+
+    def test_read_blob_text_returns_empty_for_missing_blob(self) -> None:
+        class BlobNotFoundError(Exception):
+            pass
+
+        class FakeBlobClient:
+            async def get(self, pathname: str, access: str):
+                raise BlobNotFoundError()
+
+        vercel_module = types.ModuleType("vercel")
+        blob_module = types.ModuleType("vercel.blob")
+        internal_module = types.ModuleType("vercel._internal")
+        internal_blob_module = types.ModuleType("vercel._internal.blob")
+        internal_errors_module = types.ModuleType("vercel._internal.blob.errors")
+
+        blob_module.AsyncBlobClient = FakeBlobClient
+        internal_errors_module.BlobNotFoundError = BlobNotFoundError
+
+        from unittest.mock import patch
+
+        with patch.dict(
+            sys.modules,
+            {
+                "vercel": vercel_module,
+                "vercel.blob": blob_module,
+                "vercel._internal": internal_module,
+                "vercel._internal.blob": internal_blob_module,
+                "vercel._internal.blob.errors": internal_errors_module,
+            },
+        ):
+            self.assertEqual(asyncio.run(read_blob_text("state/seen-links.json")), "")
 
     def test_run_scheduled_digest_sends_once_per_day(self) -> None:
         config = DigestConfig(
