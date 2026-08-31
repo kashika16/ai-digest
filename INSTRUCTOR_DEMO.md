@@ -41,4 +41,4 @@ make preview-html
 ## Notes
 
 - The core product works locally and sends email successfully when SMTP credentials are configured.
-- The cloud deployment path was explored separately, but the public repository and local demo are the recommended evaluation path for this submission.
+- Vercel is supported as the hosted scheduling path, but the public repository and local demo are still the recommended evaluation path for this submission.

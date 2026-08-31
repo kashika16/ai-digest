@@ -8,12 +8,12 @@ from ai_digest.digest import preview_digest, run_digest, run_scheduled_digest
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if not authorized(self):
+        query = parse_qs(urlparse(self.path).query)
+        mode = query.get("mode", ["schedule"])[0]
+        if not authorized(self, mode):
             self.respond(401, "unauthorized")
             return
 
-        query = parse_qs(urlparse(self.path).query)
-        mode = query.get("mode", ["schedule"])[0]
         config = load_config()
 
         if mode == "preview":
@@ -40,8 +40,8 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
 
-def authorized(request: BaseHTTPRequestHandler) -> bool:
+def authorized(request: BaseHTTPRequestHandler, mode: str) -> bool:
     secret = os.environ.get("CRON_SECRET")
     if not secret:
-        return True
+        return False
     return request.headers.get("Authorization") == f"Bearer {secret}"

@@ -1,11 +1,27 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 import re
 
 from ai_digest.config import DigestConfig
-from ai_digest.models import FeedEntry, Source
+from ai_digest.models import DigestBuildResult, FeedEntry, Source, SourceFetchFailure
 from ai_digest.rss import fetch_feed_xml, parse_feed
+
+
+WINDOW_STEP_HOURS = 24
+
+
+class SourceFetchOutcome:
+    def __init__(
+        self,
+        source: Source,
+        entries: Optional[list[FeedEntry]] = None,
+        failure: Optional[SourceFetchFailure] = None,
+    ) -> None:
+        self.source = source
+        self.entries = entries or []
+        self.failure = failure
 
 
 def fetch_entries_for_source(source: Source) -> list[FeedEntry]:
@@ -15,11 +31,39 @@ def fetch_entries_for_source(source: Source) -> list[FeedEntry]:
     return sorted(entries, key=lambda entry: entry.published_at, reverse=True)[: source.max_items]
 
 
-def fetch_all_entries(sources: list[Source]) -> list[FeedEntry]:
+def fetch_source_outcome(source: Source) -> SourceFetchOutcome:
+    try:
+        return SourceFetchOutcome(source=source, entries=fetch_entries_for_source(source))
+    except Exception as error:
+        return SourceFetchOutcome(source=source, failure=SourceFetchFailure(source.name, summarize_source_error(error)))
+
+
+def summarize_source_error(error: Exception) -> str:
+    message = " ".join(str(error).split())
+    if not message:
+        return type(error).__name__
+    return f"{type(error).__name__}: {message}"
+
+
+def fetch_all_entries(sources: list[Source]) -> tuple[list[FeedEntry], list[SourceFetchFailure]]:
+    if not sources:
+        return [], []
+
+    source_order = {source: index for index, source in enumerate(sources)}
+    outcomes: list[SourceFetchOutcome] = []
+    with ThreadPoolExecutor(max_workers=min(len(sources), 8)) as executor:
+        futures = [executor.submit(fetch_source_outcome, source) for source in sources]
+        for future in as_completed(futures):
+            outcomes.append(future.result())
+
+    outcomes.sort(key=lambda outcome: source_order[outcome.source])
     entries: list[FeedEntry] = []
-    for source in sources:
-        entries.extend(fetch_entries_for_source(source))
-    return entries
+    unavailable_sources: list[SourceFetchFailure] = []
+    for outcome in outcomes:
+        entries.extend(outcome.entries)
+        if outcome.failure is not None:
+            unavailable_sources.append(outcome.failure)
+    return entries, unavailable_sources
 
 
 def recent_cutoff(config: DigestConfig, now_utc: datetime) -> datetime:
@@ -84,21 +128,72 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def select_entries_for_window(
+    config: DigestConfig,
+    entries: list[FeedEntry],
+    now_utc: datetime,
+    ignore_seen: bool,
+    seen_links: set[str],
+) -> tuple[int, list[FeedEntry]]:
+    hours_back = config.hours_back
+    while True:
+        cutoff = recent_cutoff_for_hours(now_utc, hours_back)
+        current_entries = filter_recent_entries(entries, cutoff)
+        current_entries = dedupe_entries(current_entries)
+        if not ignore_seen:
+            current_entries = filter_unseen_entries(current_entries, seen_links)
+        current_entries = rank_entries(current_entries)
+        current_entries = clamp_entries(current_entries, config.max_items)
+        if len(current_entries) >= config.min_digest_items or hours_back >= config.max_digest_hours_back:
+            return hours_back, current_entries
+        next_hours = min(hours_back + WINDOW_STEP_HOURS, config.max_digest_hours_back)
+        if next_hours == hours_back:
+            return hours_back, current_entries
+        hours_back = next_hours
+
+
+def recent_cutoff_for_hours(now_utc: datetime, hours_back: int) -> datetime:
+    return now_utc - timedelta(hours=hours_back)
+
+
+def unique_links(entries: list[FeedEntry]) -> list[str]:
+    links: list[str] = []
+    seen_links: set[str] = set()
+    for entry in entries:
+        if entry.link in seen_links:
+            continue
+        seen_links.add(entry.link)
+        links.append(entry.link)
+    return links
+
+
+def prune_seen_links(current_seen_links: set[str], entries: list[FeedEntry], max_seen_links: int) -> set[str]:
+    recent_links = unique_links(entries)
+    pruned_links = recent_links + sorted(current_seen_links - set(recent_links))
+    return set(pruned_links[:max_seen_links])
+
+
 def build_digest_entries(
     config: DigestConfig,
     sources: list[Source],
     ignore_seen: bool = False,
     seen_links: Optional[set[str]] = None,
-) -> tuple[datetime, list[FeedEntry], set[str]]:
+) -> DigestBuildResult:
     now_utc = utc_now()
-    cutoff = recent_cutoff(config, now_utc)
     current_seen_links = seen_links or set()
-    entries = fetch_all_entries(sources)
-    entries = filter_recent_entries(entries, cutoff)
-    entries = dedupe_entries(entries)
-    if not ignore_seen:
-        entries = filter_unseen_entries(entries, current_seen_links)
-    entries = rank_entries(entries)
-    entries = clamp_entries(entries, config.max_items)
-    new_seen_links = current_seen_links | {entry.link for entry in entries}
-    return local_now(config), entries, new_seen_links
+    entries, unavailable_sources = fetch_all_entries(sources)
+    coverage_hours, selected_entries = select_entries_for_window(
+        config,
+        entries,
+        now_utc,
+        ignore_seen,
+        current_seen_links,
+    )
+    new_seen_links = prune_seen_links(current_seen_links | {entry.link for entry in selected_entries}, selected_entries, config.max_seen_links)
+    return DigestBuildResult(
+        now_local=local_now(config),
+        coverage_hours=coverage_hours,
+        entries=selected_entries,
+        new_seen_links=new_seen_links,
+        unavailable_sources=unavailable_sources,
+    )

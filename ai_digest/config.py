@@ -23,6 +23,10 @@ class DigestConfig:
     smtp_password: Optional[str]
     smtp_use_tls: bool
     smtp_use_ssl: bool
+    scheduled_hour: int = 7
+    min_digest_items: int = 8
+    max_digest_hours_back: int = 72
+    max_seen_links: int = 2000
 
 
 def parse_bool(raw_value: str) -> bool:
@@ -76,6 +80,10 @@ def load_config() -> DigestConfig:
         smtp_password=os.environ.get("SMTP_PASSWORD"),
         smtp_use_tls=parse_bool(os.environ.get("SMTP_USE_TLS", "true")),
         smtp_use_ssl=parse_bool(os.environ.get("SMTP_USE_SSL", "false")),
+        scheduled_hour=int(os.environ.get("DIGEST_SEND_HOUR", "7")),
+        min_digest_items=int(os.environ.get("DIGEST_MIN_ITEMS", "8")),
+        max_digest_hours_back=int(os.environ.get("DIGEST_MAX_HOURS_BACK", "72")),
+        max_seen_links=int(os.environ.get("DIGEST_MAX_SEEN_LINKS", "2000")),
     )
 
 

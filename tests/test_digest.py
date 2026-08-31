@@ -6,11 +6,12 @@ import tempfile
 import types
 import unittest
 
+from api.cron import authorized
 from ai_digest.briefing import build_briefing_items
 from ai_digest.config import DigestConfig, require_send_config
 from ai_digest.digest import run_scheduled_digest
 from ai_digest.launchd import launch_agent_dict
-from ai_digest.pipeline import build_digest_entries, dedupe_entries, entry_matches_source, filter_recent_entries
+from ai_digest.pipeline import build_digest_entries, dedupe_entries, entry_matches_source, fetch_all_entries, filter_recent_entries
 from ai_digest.render import build_html, build_plaintext, build_subject
 from ai_digest.rss import parse_feed
 from ai_digest.models import FeedEntry, Source
@@ -88,8 +89,8 @@ class DigestTests(unittest.TestCase):
         items = build_briefing_items([entry])
 
         subject = build_subject("AI Daily Digest", now_local)
-        plain = build_plaintext(now_local, 24, items)
-        html = build_html(now_local, 24, items)
+        plain = build_plaintext(now_local, 24, items, [])
+        html = build_html(now_local, 24, items, [])
 
         self.assertEqual(subject, "AI Daily Digest - 2026-08-13")
         self.assertIn("AI Daily Brief", plain)
@@ -150,6 +151,7 @@ class DigestTests(unittest.TestCase):
         )
 
         agent = launch_agent_dict(config, 7, 0)
+        self.assertEqual(agent["ProgramArguments"][0], sys.executable)
         self.assertEqual(agent["ProgramArguments"][1], "/tmp/project/run_digest.py")
         self.assertEqual(agent["StartCalendarInterval"]["Hour"], 7)
 
@@ -234,6 +236,32 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(len(item.key_points), 2)
         self.assertIn("product teams", item.key_points[0].lower())
 
+    def test_community_items_drop_comments_filler(self) -> None:
+        source = Source("Hacker News", "https://news.ycombinator.com/rss", "Community", 4, 2)
+        entry = FeedEntry(
+            source=source,
+            title="Show HN: A better digest",
+            link="https://example.com/hn",
+            summary="Comments",
+            published_at=datetime(2026, 8, 13, 9, 0, tzinfo=timezone.utc),
+        )
+
+        item = build_briefing_items([entry])[0]
+        self.assertEqual(item.key_points, ("Show HN: A better digest",))
+
+    def test_sentence_splitting_keeps_vs_together(self) -> None:
+        source = Source("Lenny's Newsletter", "https://example.com/feed", "Product", 4, 2)
+        entry = FeedEntry(
+            source=source,
+            title="AI product strategy",
+            link="https://example.com/strategy",
+            summary="Build for steering vs. rowing. Then revisit your roadmap.",
+            published_at=datetime(2026, 8, 13, 9, 0, tzinfo=timezone.utc),
+        )
+
+        item = build_briefing_items([entry])[0]
+        self.assertEqual(item.key_points[0], "Build for steering vs. rowing.")
+
     def test_build_digest_entries_can_ignore_seen(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir)
@@ -269,22 +297,102 @@ class DigestTests(unittest.TestCase):
 
             from unittest.mock import patch
 
-            with patch("ai_digest.pipeline.fetch_all_entries", return_value=[seen_entry]):
-                _, normal_entries, _ = build_digest_entries(
+            with patch("ai_digest.pipeline.fetch_all_entries", return_value=([seen_entry], [])):
+                normal_result = build_digest_entries(
                     config,
                     [source],
                     ignore_seen=False,
                     seen_links=load_seen_links_file(state_file),
                 )
-                _, preview_entries, _ = build_digest_entries(
+                preview_result = build_digest_entries(
                     config,
                     [source],
                     ignore_seen=True,
                     seen_links=load_seen_links_file(state_file),
                 )
 
-            self.assertEqual(normal_entries, [])
-            self.assertEqual(preview_entries, [seen_entry])
+            self.assertEqual(normal_result.entries, [])
+            self.assertEqual(preview_result.entries, [seen_entry])
+
+    def test_build_digest_entries_widens_quiet_window(self) -> None:
+        config = DigestConfig(
+            project_root=Path("/tmp/project"),
+            sources_file=Path("/tmp/project/sources.json"),
+            state_file=Path("/tmp/project/state.json"),
+            last_sent_file=Path("/tmp/project/last_sent.txt"),
+            log_dir=Path("/tmp/project/logs"),
+            to_email=None,
+            from_email=None,
+            subject_prefix="AI Daily Digest",
+            hours_back=24,
+            max_items=20,
+            timezone_name="Europe/Berlin",
+            smtp_host=None,
+            smtp_port=None,
+            smtp_username=None,
+            smtp_password=None,
+            smtp_use_tls=True,
+            smtp_use_ssl=False,
+            min_digest_items=3,
+            max_digest_hours_back=72,
+        )
+        source = Source("Example", "https://example.com/feed", "News", 1, 5)
+        entries = [
+            FeedEntry(source, "Fresh", "https://example.com/fresh", "Fresh summary", datetime(2026, 8, 13, 8, 0, tzinfo=timezone.utc)),
+            FeedEntry(source, "Older 1", "https://example.com/older-1", "Older summary", datetime(2026, 8, 12, 12, 0, tzinfo=timezone.utc)),
+            FeedEntry(source, "Older 2", "https://example.com/older-2", "Older summary", datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)),
+        ]
+
+        from unittest.mock import patch
+
+        with patch("ai_digest.pipeline.utc_now", return_value=datetime(2026, 8, 13, 9, 0, tzinfo=timezone.utc)), patch(
+            "ai_digest.pipeline.fetch_all_entries",
+            return_value=(entries, []),
+        ):
+            result = build_digest_entries(config, [source], ignore_seen=False, seen_links=set())
+
+        self.assertEqual(result.coverage_hours, 48)
+        self.assertEqual(len(result.entries), 3)
+
+    def test_build_digest_entries_caps_seen_links(self) -> None:
+        config = DigestConfig(
+            project_root=Path("/tmp/project"),
+            sources_file=Path("/tmp/project/sources.json"),
+            state_file=Path("/tmp/project/state.json"),
+            last_sent_file=Path("/tmp/project/last_sent.txt"),
+            log_dir=Path("/tmp/project/logs"),
+            to_email=None,
+            from_email=None,
+            subject_prefix="AI Daily Digest",
+            hours_back=24,
+            max_items=20,
+            timezone_name="Europe/Berlin",
+            smtp_host=None,
+            smtp_port=None,
+            smtp_username=None,
+            smtp_password=None,
+            smtp_use_tls=True,
+            smtp_use_ssl=False,
+            max_seen_links=3,
+        )
+        source = Source("Example", "https://example.com/feed", "News", 1, 5)
+        entries = [FeedEntry(source, "New", "https://example.com/new", "Summary", datetime(2026, 8, 13, 8, 0, tzinfo=timezone.utc))]
+
+        from unittest.mock import patch
+
+        with patch("ai_digest.pipeline.utc_now", return_value=datetime(2026, 8, 13, 9, 0, tzinfo=timezone.utc)), patch(
+            "ai_digest.pipeline.fetch_all_entries",
+            return_value=(entries, []),
+        ):
+            result = build_digest_entries(
+                config,
+                [source],
+                ignore_seen=False,
+                seen_links={"https://example.com/a", "https://example.com/b", "https://example.com/c"},
+            )
+
+        self.assertEqual(len(result.new_seen_links), 3)
+        self.assertIn("https://example.com/new", result.new_seen_links)
 
     def test_last_sent_file_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -360,6 +468,89 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(second, "skip: already sent on 2026-08-28")
         self.assertEqual(run_mock.call_count, 1)
         save_mock.assert_called_once_with(config, "2026-08-28")
+
+    def test_run_scheduled_digest_uses_configured_hour(self) -> None:
+        config = DigestConfig(
+            project_root=Path("/tmp/project"),
+            sources_file=Path("/tmp/project/sources.json"),
+            state_file=Path("/tmp/project/state.json"),
+            last_sent_file=Path("/tmp/project/last_sent.txt"),
+            log_dir=Path("/tmp/project/logs"),
+            to_email="to@example.com",
+            from_email="from@example.com",
+            subject_prefix="AI Daily Digest",
+            hours_back=24,
+            max_items=20,
+            timezone_name="Europe/Berlin",
+            smtp_host="smtp.example.com",
+            smtp_port=587,
+            smtp_username="user",
+            smtp_password="pass",
+            smtp_use_tls=True,
+            smtp_use_ssl=False,
+            scheduled_hour=8,
+        )
+
+        from unittest.mock import patch
+
+        fake_now = datetime(2026, 8, 28, 7, 10, tzinfo=timezone.utc)
+        with patch("ai_digest.digest.local_now", return_value=fake_now):
+            result = run_scheduled_digest(config)
+
+        self.assertEqual(result, "skip: local hour is 07, target is 08")
+
+    def test_authorized_requires_secret(self) -> None:
+        request = types.SimpleNamespace(headers={})
+
+        from unittest.mock import patch
+
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertFalse(authorized(request, "send"))
+
+    def test_authorized_accepts_matching_secret(self) -> None:
+        request = types.SimpleNamespace(headers={"Authorization": "Bearer top-secret"})
+
+        from unittest.mock import patch
+
+        with patch.dict("os.environ", {"CRON_SECRET": "top-secret"}, clear=True):
+            self.assertTrue(authorized(request, "send"))
+
+    def test_fetch_all_entries_isolates_source_failures(self) -> None:
+        first = Source("First", "https://example.com/1", "News", 1, 5)
+        second = Source("Second", "https://example.com/2", "News", 1, 5)
+        entry = FeedEntry(first, "Fresh", "https://example.com/fresh", "Summary", datetime(2026, 8, 13, 9, 0, tzinfo=timezone.utc))
+
+        from unittest.mock import patch
+
+        def fake_fetch(source: Source) -> list[FeedEntry]:
+            if source.name == "Second":
+                raise ValueError("bad xml")
+            return [entry]
+
+        with patch("ai_digest.pipeline.fetch_entries_for_source", side_effect=fake_fetch):
+            entries, failures = fetch_all_entries([first, second])
+
+        self.assertEqual(entries, [entry])
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(failures[0].source_name, "Second")
+        self.assertIn("ValueError", failures[0].detail)
+
+    def test_render_includes_unavailable_sources_note(self) -> None:
+        source = Source("Example", "https://example.com/feed", "News", 1, 5)
+        entry = FeedEntry(
+            source=source,
+            title="Fresh",
+            link="https://example.com/fresh",
+            summary="Summary body. More detail.",
+            published_at=datetime(2026, 8, 13, 9, 0, tzinfo=timezone.utc),
+        )
+        item = build_briefing_items([entry])[0]
+        failure = types.SimpleNamespace(source_name="Hacker News", detail="TimeoutError")
+        plain = build_plaintext(datetime(2026, 8, 13, 11, 0, tzinfo=timezone.utc), 48, [item], [failure])
+        html = build_html(datetime(2026, 8, 13, 11, 0, tzinfo=timezone.utc), 48, [item], [failure])
+
+        self.assertIn("Sources unavailable today: Hacker News (TimeoutError)", plain)
+        self.assertIn("Sources unavailable today", html)
 
 
 if __name__ == "__main__":

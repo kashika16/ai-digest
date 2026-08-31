@@ -17,6 +17,7 @@ LAUNCH_KEYWORDS = ("launch", "release", "ship", "introduce", "announce", "rollou
 PRODUCT_KEYWORDS = ("product", "podcast", "builder", "founder", "pm", "workflow", "cursor", "chatgpt", "codex")
 MARKET_KEYWORDS = ("raise", "raises", "raised", "acquire", "acquires", "acquisition", "valuation", "startup", "funding")
 POLICY_KEYWORDS = ("policy", "safety", "regulation", "regulatory", "watermark", "trust", "governance", "preparedness")
+ABBREVIATION_PATTERN = re.compile(r"\b(?:vs|e\.g|i\.e|mr|mrs|ms|dr|prof|u\.s|u\.k)\.", re.IGNORECASE)
 
 
 def build_briefing_items(entries: list[FeedEntry]) -> list[BriefingItem]:
@@ -113,8 +114,27 @@ def summary_body(entry: FeedEntry) -> str:
 def extract_sentences(text: str) -> list[str]:
     if not text:
         return []
-    candidates = re.split(r"(?<=[.!?])\s+", text)
-    return [candidate.strip() for candidate in candidates if candidate.strip()]
+    protected_text, replacements = protect_abbreviations(text)
+    candidates = re.split(r"(?<=[.!?])\s+", protected_text)
+    return [restore_abbreviations(candidate.strip(), replacements) for candidate in candidates if candidate.strip()]
+
+
+def protect_abbreviations(text: str) -> tuple[str, list[tuple[str, str]]]:
+    replacements: list[tuple[str, str]] = []
+
+    def replace(match: re.Match[str]) -> str:
+        token = f"__abbr_{len(replacements)}__"
+        replacements.append((token, match.group(0)))
+        return token
+
+    return ABBREVIATION_PATTERN.sub(replace, text), replacements
+
+
+def restore_abbreviations(text: str, replacements: list[tuple[str, str]]) -> str:
+    restored = text
+    for token, original in replacements:
+        restored = restored.replace(token, original)
+    return restored
 
 
 def trim_point(text: str, max_chars: int = 220) -> str:
@@ -129,9 +149,14 @@ def fallback_detail_point(entry: FeedEntry) -> str:
 
 
 def community_key_points(entry: FeedEntry, sentences: list[str]) -> list[str]:
-    if sentences and sentences[0].lower() != "comments":
-        return [trim_point(sentences[0]), "This item is trending on Hacker News."]
-    return [trim_point(entry.title), "This item is trending on Hacker News."]
+    useful_sentences = [trim_point(sentence) for sentence in sentences if sentence.lower() != "comments"]
+    unique_points: list[str] = []
+    for sentence in useful_sentences:
+        if sentence not in unique_points:
+            unique_points.append(sentence)
+    if unique_points:
+        return unique_points[:2]
+    return [trim_point(entry.title)]
 
 
 def research_key_points(entry: FeedEntry, sentences: list[str]) -> list[str]:

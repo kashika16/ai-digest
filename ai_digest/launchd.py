@@ -1,5 +1,6 @@
 from pathlib import Path
 from plistlib import dump
+import sys
 
 from ai_digest.config import DigestConfig
 
@@ -15,7 +16,7 @@ def launch_agent_dict(config: DigestConfig, hour: int, minute: int, label: str =
     return {
         "Label": label,
         "ProgramArguments": [
-            "/usr/bin/python3",
+            sys.executable,
             str(config.project_root / "run_digest.py"),
         ],
         "WorkingDirectory": str(config.project_root),

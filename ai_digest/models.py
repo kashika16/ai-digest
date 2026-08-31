@@ -28,3 +28,18 @@ class BriefingItem:
     section: str
     key_points: tuple[str, ...]
     why_it_matters: str
+
+
+@dataclass(frozen=True)
+class SourceFetchFailure:
+    source_name: str
+    detail: str
+
+
+@dataclass
+class DigestBuildResult:
+    now_local: datetime
+    coverage_hours: int
+    entries: list[FeedEntry]
+    new_seen_links: set[str]
+    unavailable_sources: list[SourceFetchFailure]
